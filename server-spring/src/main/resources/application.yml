@@ -1,0 +1,12 @@
+server:
+  port: 8081
+  compression:
+    enabled: true
+    mime-types: application/json
+    min-response-size: 1024
+spring:
+  application:
+    name: univer-sheet-server
+  data:
+    mongodb:
+      uri: ${MONGODB_URI:mongodb://localhost:27017/univer_sheet_demo}

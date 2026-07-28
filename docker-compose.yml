@@ -1,0 +1,17 @@
+services:
+  frontend:
+    build: ./frontend
+    ports: ["5174:80"]
+    depends_on: [server]
+  server:
+    build: ./server-spring
+    ports: ["8081:8081"]
+    environment:
+      MONGODB_URI: mongodb://mongo:27017/univer_sheet_demo
+    depends_on: [mongo]
+  mongo:
+    image: mongo:8
+    ports: ["27018:27017"]
+    volumes: [univer-sheet-mongo:/data/db]
+volumes:
+  univer-sheet-mongo:

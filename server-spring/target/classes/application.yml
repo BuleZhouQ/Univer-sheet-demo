@@ -1,0 +1,8 @@
+server:
+  port: 8081
+spring:
+  application:
+    name: univer-sheet-server
+  data:
+    mongodb:
+      uri: ${MONGODB_URI:mongodb://localhost:27017/univer_sheet_demo}
