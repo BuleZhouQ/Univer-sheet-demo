@@ -17,7 +17,21 @@ cd server-spring
 mvn spring-boot:run
 ```
 
-前端开发地址为 `http://localhost:5174`，后端为 `http://localhost:8081`。
+再启动协同网关：
+
+```powershell
+cd gateway
+npm install
+npm start
+```
+
+前端开发地址为 `http://localhost:5174`，后端为 `http://localhost:8081`，协同网关为
+`http://localhost:3001`。使用相同 `room` 参数打开两个页面即可验证实时同步：
+
+```text
+http://localhost:5174/?room=demo&user=张三
+http://localhost:5174/?room=demo&user=李四
+```
 
 ## 验证
 

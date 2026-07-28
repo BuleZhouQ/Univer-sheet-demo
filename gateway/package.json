@@ -1,0 +1,15 @@
+{
+  "name": "univer-collaboration-gateway",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@socket.io/redis-adapter": "8.3.0",
+    "mongodb": "6.17.0",
+    "redis": "4.7.0",
+    "socket.io": "4.8.1"
+  }
+}

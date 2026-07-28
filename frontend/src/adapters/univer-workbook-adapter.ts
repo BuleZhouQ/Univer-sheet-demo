@@ -1,4 +1,5 @@
 import type { IWorkbookData } from "@univerjs/core";
+import type { RemoteSelection } from "../models/collaboration";
 
 export type CellScalar = string | number | boolean | null;
 export type CellPatch = { row: number; column: number; value: CellScalar; formula?: string };
@@ -92,7 +93,38 @@ export function performanceRowsToWorkbookData(payload: PerformanceSnapshotPayloa
 }
 
 export class UniverWorkbookAdapter {
-  constructor(private readonly api: any) {}
+  private applyingRemote = false;
+  private remoteSelections = new Map<string, RemoteSelection>();
+  private cursorRenderer: { dispose: () => void };
+
+  constructor(private readonly api: any) {
+    this.cursorRenderer = api.getSheetHooks().onCellRender([{
+      zIndex: 100,
+      drawWith: (ctx: CanvasRenderingContext2D, info: any) => {
+        for (const selection of this.remoteSelections.values()) {
+          if (selection.sheetId && selection.sheetId !== info.subUnitId) continue;
+          if (info.row < selection.startRow || info.row > selection.endRow ||
+              info.col < selection.startColumn || info.col > selection.endColumn) continue;
+          const { startX, startY, endX, endY } = info.primaryWithCoord;
+          ctx.save();
+          ctx.fillStyle = `${selection.color}22`;
+          ctx.fillRect(startX, startY, endX - startX, endY - startY);
+          ctx.strokeStyle = selection.color;
+          ctx.lineWidth = 2;
+          ctx.strokeRect(startX + 1, startY + 1, endX - startX - 2, endY - startY - 2);
+          if (info.row === selection.startRow && info.col === selection.startColumn) {
+            ctx.font = "12px sans-serif";
+            const labelWidth = Math.max(44, ctx.measureText(selection.userName).width + 12);
+            ctx.fillStyle = selection.color;
+            ctx.fillRect(startX, Math.max(0, startY - 20), labelWidth, 20);
+            ctx.fillStyle = "#fff";
+            ctx.fillText(selection.userName, startX + 6, Math.max(13, startY - 6));
+          }
+          ctx.restore();
+        }
+      },
+    }]);
+  }
 
   private sheet() {
     return this.api.getActiveWorkbook()?.getActiveSheet();
@@ -152,5 +184,65 @@ export class UniverWorkbookAdapter {
       scrollDisposable.dispose();
       selectionDisposable.dispose();
     };
+  }
+
+  onRangeChanged(callback: (payload: { startRow: number; startColumn: number; values: CellScalar[][]; formulas: string[][] }) => void) {
+    const disposable = this.api.addEvent(this.api.Event.SheetValueChanged, ({ effectedRanges }: any) => {
+      if (this.applyingRemote) return;
+      for (const range of effectedRanges ?? []) {
+        const raw = range.getRange();
+        callback({
+          startRow: raw.startRow,
+          startColumn: raw.startColumn,
+          values: range.getValues(),
+          formulas: range.getFormulas(),
+        });
+      }
+    });
+    return () => disposable.dispose();
+  }
+
+  async applyRemoteRange(payload: { startRow: number; startColumn: number; values: CellScalar[][]; formulas: string[][] }) {
+    const rowCount = payload.values.length;
+    const columnCount = payload.values[0]?.length ?? 0;
+    if (!rowCount || !columnCount) return;
+    const range = this.sheet()?.getRange(payload.startRow, payload.startColumn, rowCount, columnCount);
+    this.applyingRemote = true;
+    try {
+      await range?.setValues(payload.values);
+      if (payload.formulas.some((row) => row.some(Boolean))) await range?.setFormulas(payload.formulas);
+    } finally {
+      this.applyingRemote = false;
+    }
+  }
+
+  onSelectionChanged(callback: (selection: Omit<RemoteSelection, "userId" | "userName" | "color">) => void) {
+    const disposable = this.api.addEvent(this.api.Event.SelectionChanged, ({ worksheet, selections }: any) => {
+      const selection = selections?.[0];
+      if (!selection) return;
+      callback({
+        sheetId: worksheet.getSheetId(),
+        startRow: selection.startRow,
+        startColumn: selection.startColumn,
+        endRow: selection.endRow,
+        endColumn: selection.endColumn,
+      });
+    });
+    return () => disposable.dispose();
+  }
+
+  setRemoteSelection(selection: RemoteSelection) {
+    this.remoteSelections.set(selection.userId, selection);
+    this.sheet()?.refreshCanvas();
+  }
+
+  removeRemoteSelection(userId: string) {
+    this.remoteSelections.delete(userId);
+    this.sheet()?.refreshCanvas();
+  }
+
+  dispose() {
+    this.cursorRenderer.dispose();
+    this.remoteSelections.clear();
   }
 }
