@@ -1,14 +1,18 @@
 package com.demo.univer.performance
 
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Test
+import io.mockk.every
+import io.mockk.mockk
+import kotlin.test.Test
+import kotlin.test.assertEquals
 
 class PerformanceDataServiceTest {
+    private val repository = mockk<PerformanceRowRepository>()
+    private val service = PerformanceDataService(repository)
+
     @Test
-    fun `returns 200 rows with 20 columns`() {
-        val result = PerformanceDataService().rows(200, 200)
-        assertEquals(200, result.size)
-        assertEquals(20, result.first().values.size)
-        assertEquals(200, result.first().rowNumber)
+    fun `rows are read from database`() {
+        val document = PerformanceRowDocument(200, listOf("ROW-000200", "???????? 200 ?"))
+        every { repository.findByRowNumberBetweenOrderByRowNumberAsc(200, 201) } returns listOf(document)
+        assertEquals(listOf(PerformanceRow(200, document.values)), service.rows(200, 2))
     }
 }

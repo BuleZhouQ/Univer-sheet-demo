@@ -6,7 +6,7 @@ export default defineConfig({
   server: {
     port: 5174,
     proxy: {
-      "/api": "http://localhost:8081",
+      "/api": "http://localhost:8084",
       "/socket.io": { target: "http://localhost:3001", ws: true },
     },
   },

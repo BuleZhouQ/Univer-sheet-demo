@@ -5,7 +5,7 @@ services:
     depends_on: [server, gateway]
   server:
     build: ./server-spring
-    ports: ["8081:8081"]
+    ports: ["8084:8081"]
     environment:
       MONGODB_URI: mongodb://mongo:27017/univer_sheet_demo
     depends_on: [mongo]
