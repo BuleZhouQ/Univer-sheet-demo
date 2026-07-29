@@ -20,10 +20,15 @@ onMounted(async () => {
   });
   univer = result.univer;
   try {
-    const response = await fetch("/api/performance/snapshot");
-    if (!response.ok) throw new Error(`snapshot HTTP ${response.status}`);
-    const snapshot = await response.json();
-    result.univerAPI.createWorkbook(performanceRowsToWorkbookData(snapshot));
+    const query = new URLSearchParams(location.search);
+    if (query.get("performance") !== "0") {
+      const response = await fetch("/api/performance/snapshot");
+      if (!response.ok) throw new Error(`snapshot HTTP ${response.status}`);
+      const snapshot = await response.json();
+      result.univerAPI.createWorkbook(performanceRowsToWorkbookData(snapshot));
+    } else {
+      result.univerAPI.createWorkbook(createAssessmentWorkbookData(100_000, 26));
+    }
   } catch {
     result.univerAPI.createWorkbook(createAssessmentWorkbookData(100_000, 26));
   } finally {

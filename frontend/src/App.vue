@@ -18,6 +18,7 @@ const query = new URLSearchParams(location.search);
 const room = query.get("room") || "univer-demo";
 const questionId = query.get("questionId") || "default";
 const studentMode = query.get("mode") === "student";
+const performanceMode = query.get("performance") === "1";
 const user = query.get("user") || sessionStorage.getItem("univer-user") || `用户-${Math.random().toString(36).slice(2, 6)}`;
 const savedQuestion = localStorage.getItem("univer-question-config");
 const question = ref<QuestionConfig>(savedQuestion ? JSON.parse(savedQuestion) : {
@@ -32,6 +33,10 @@ let stopSelection: (() => void) | undefined;
 
 const onEditorReady = async (editor: UniverWorkbookAdapter) => {
   adapter.value = editor;
+  if (performanceMode) {
+    window.requestAnimationFrame(() => editor.markReady());
+    return;
+  }
   collaboration.connect(room, user);
   if (studentMode) {
     try {
@@ -44,6 +49,7 @@ const onEditorReady = async (editor: UniverWorkbookAdapter) => {
     }
   } else {
     stopSelection = authoring.start();
+    window.requestAnimationFrame(() => editor.markReady());
     try {
       const definition = await getTeacherQuestion(questionId);
       question.value = definition;
@@ -110,32 +116,32 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <main class="app-shell" :class="{ 'preview-mode': authoring.preview.value }">
+  <main class="app-shell" :class="{ 'preview-mode': authoring.preview.value, 'performance-only': performanceMode }">
     <header class="toolbar">
       <div class="brand"><div class="brand-mark">▣</div><div><h1>表格实训</h1><span>题库与在线考核</span></div></div>
-      <div class="toolbar-title"><span class="mode-dot"></span>{{ studentMode ? "学员答题模式" : authoring.preview.value ? "学员预览" : "教师出题模式" }}</div>
+      <div class="toolbar-title"><span class="mode-dot"></span>{{ performanceMode ? "10 万行性能测试" : studentMode ? "学员答题模式" : authoring.preview.value ? "学员预览" : "教师出题模式" }}</div>
       <div class="actions">
-        <span v-if="!studentMode" class="save-state">{{ saved ? "✓ 已保存到服务器" : "评分规则保存在服务器" }}</span>
-        <el-button v-if="!studentMode" plain @click="authoring.togglePreview()">{{ authoring.preview.value ? "退出预览" : "学员视角预览" }}</el-button>
-        <el-button v-if="!studentMode && !authoring.preview.value" type="primary" @click="saveQuestion">保存题目</el-button>
+        <span v-if="!studentMode && !performanceMode" class="save-state">{{ saved ? "✓ 已保存到服务器" : "评分规则保存在服务器" }}</span>
+        <el-button v-if="!studentMode && !performanceMode" plain @click="authoring.togglePreview()">{{ authoring.preview.value ? "退出预览" : "学员视角预览" }}</el-button>
+        <el-button v-if="!studentMode && !performanceMode && !authoring.preview.value" type="primary" @click="saveQuestion">保存题目</el-button>
         <el-tag v-if="studentMode" type="success">答案已隔离</el-tag>
       </div>
     </header>
     <section class="titlebar">
       <el-button link>‹ 返回题库</el-button>
       <div class="title-copy"><h2>{{ question.title }}</h2><div><el-tag size="small">{{ question.difficulty }}</el-tag><span>◷ 预计 {{ question.duration }} 分钟</span><span>满分 {{ authoring.totalScore.value }} 分</span></div></div>
-      <el-button v-if="!studentMode && !authoring.preview.value" link class="collapse-action">收起题目说明</el-button>
+      <el-button v-if="!studentMode && !performanceMode && !authoring.preview.value" link class="collapse-action">收起题目说明</el-button>
     </section>
     <section class="workspace">
-      <QuestionBrief v-if="studentMode || !authoring.preview.value" :question="question" :preview="studentMode || authoring.preview.value" @update="updateQuestion" />
+      <QuestionBrief v-if="!performanceMode && (studentMode || !authoring.preview.value)" :question="question" :preview="studentMode || authoring.preview.value" @update="updateQuestion" />
       <div class="sheet"><UniverSheetEditor @ready="onEditorReady" /></div>
-      <AuthoringSidebar v-if="!studentMode && (!authoring.preview.value || authoring.rules.value.length)" :rules="authoring.rules.value" :selection="authoring.selection.value" :selected-value="authoring.selection.value ? (adapter?.getCellValue(authoring.selection.value.startRow, authoring.selection.value.startColumn) ?? null) : null" :preview="authoring.preview.value" :total-score="authoring.totalScore.value" @mark="authoring.markSelection" @remove="authoring.removeRule" @update="(id, patch) => { const rule = authoring.rules.value.find((item) => item.id === id); if (rule) Object.assign(rule, patch) }" />
+      <AuthoringSidebar v-if="!performanceMode && !studentMode && (!authoring.preview.value || authoring.rules.value.length)" :rules="authoring.rules.value" :selection="authoring.selection.value" :selected-value="authoring.selection.value ? (adapter?.getCellValue(authoring.selection.value.startRow, authoring.selection.value.startColumn) ?? null) : null" :preview="authoring.preview.value" :total-score="authoring.totalScore.value" @mark="authoring.markSelection" @remove="authoring.removeRule" @update="(id, patch) => { const rule = authoring.rules.value.find((item) => item.id === id); if (rule) Object.assign(rule, patch) }" />
     </section>
     <footer class="bottom-bar">
-      <span>{{ studentMode ? "✦ 标准答案由服务器隔离保存，完成后请提交试卷" : "✦ 提示：先在表格中填写标准答案，选中单元格后点击“设为标准答案”" }}</span>
-      <el-button v-if="!studentMode" plain @click="authoring.togglePreview()">{{ authoring.preview.value ? "返回出题" : "预览试卷" }}</el-button>
-      <el-button v-if="!studentMode && !authoring.preview.value" type="primary" @click="runGrade">试判一次</el-button>
-      <el-button v-if="studentMode" type="primary" @click="submitStudent">提交试卷</el-button>
+      <span>{{ performanceMode ? "✦ 性能模式：仅加载 Univer 与 10 万行数据，不启用出题业务监听" : studentMode ? "✦ 标准答案由服务器隔离保存，完成后请提交试卷" : "✦ 提示：先在表格中填写标准答案，选中单元格后点击“设为标准答案”" }}</span>
+      <el-button v-if="!studentMode && !performanceMode" plain @click="authoring.togglePreview()">{{ authoring.preview.value ? "返回出题" : "预览试卷" }}</el-button>
+      <el-button v-if="!studentMode && !performanceMode && !authoring.preview.value" type="primary" @click="runGrade">试判一次</el-button>
+      <el-button v-if="studentMode && !performanceMode" type="primary" @click="submitStudent">提交试卷</el-button>
     </footer>
   </main>
 </template>

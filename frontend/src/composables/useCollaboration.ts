@@ -20,6 +20,8 @@ export function useCollaboration(adapter: () => UniverWorkbookAdapter | undefine
   let disposeChangeListener: (() => void) | undefined;
   let disposeSelectionListener: (() => void) | undefined;
   let selectionTimer = 0;
+  let rangeTimer = 0;
+  let pendingRange: RangeOperationPayload | undefined;
 
   const apply = async (operation: CollaborationOperation) => {
     await adapter()?.applyRemoteRange(operation.payload);
@@ -61,7 +63,14 @@ export function useCollaboration(adapter: () => UniverWorkbookAdapter | undefine
     client.on("disconnect", () => connected.value = false);
     client.on("connect_error", (reason) => error.value = reason.message);
     disposeChangeListener?.();
-    disposeChangeListener = adapter()?.onRangeChanged(publish);
+    disposeChangeListener = adapter()?.onRangeChanged((payload) => {
+      pendingRange = payload;
+      window.clearTimeout(rangeTimer);
+      rangeTimer = window.setTimeout(() => {
+        if (pendingRange) publish(pendingRange);
+        pendingRange = undefined;
+      }, 80);
+    });
     disposeSelectionListener?.();
     disposeSelectionListener = adapter()?.onSelectionChanged((selection) => {
       window.clearTimeout(selectionTimer);
@@ -75,6 +84,8 @@ export function useCollaboration(adapter: () => UniverWorkbookAdapter | undefine
     disposeChangeListener?.();
     disposeSelectionListener?.();
     window.clearTimeout(selectionTimer);
+    window.clearTimeout(rangeTimer);
+    pendingRange = undefined;
     socket.value?.disconnect();
     connected.value = false;
   };

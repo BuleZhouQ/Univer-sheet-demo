@@ -94,6 +94,7 @@ export function performanceRowsToWorkbookData(payload: PerformanceSnapshotPayloa
 
 export class UniverWorkbookAdapter {
   private applyingRemote = false;
+  private initializing = true;
   private remoteSelections = new Map<string, RemoteSelection>();
   private cursorRenderer: { dispose: () => void };
 
@@ -188,7 +189,7 @@ export class UniverWorkbookAdapter {
 
   onRangeChanged(callback: (payload: { startRow: number; startColumn: number; values: CellScalar[][]; formulas: string[][] }) => void) {
     const disposable = this.api.addEvent(this.api.Event.SheetValueChanged, ({ effectedRanges }: any) => {
-      if (this.applyingRemote) return;
+      if (this.applyingRemote || this.initializing) return;
       for (const range of effectedRanges ?? []) {
         const raw = range.getRange();
         callback({
@@ -200,6 +201,10 @@ export class UniverWorkbookAdapter {
       }
     });
     return () => disposable.dispose();
+  }
+
+  markReady() {
+    this.initializing = false;
   }
 
   async applyRemoteRange(payload: { startRow: number; startColumn: number; values: CellScalar[][]; formulas: string[][] }) {
